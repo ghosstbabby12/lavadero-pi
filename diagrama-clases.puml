@@ -1,0 +1,157 @@
+@startuml diagrama-dominio-lavadero
+
+title Sistema de Gestión - Centro de Lavado de Vehículos\nDiagrama de Dominio (Entidades)
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam defaultFontSize 12
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor    White
+    BorderColor        #2C3E50
+    HeaderBackgroundColor #2980B9
+    HeaderFontColor    White
+}
+skinparam enum {
+    BackgroundColor    #EAFAF1
+    BorderColor        #1E8449
+    HeaderBackgroundColor #1E8449
+    HeaderFontColor    White
+}
+skinparam package {
+    BackgroundColor    #FDFEFE
+    BorderColor        #AEB6BF
+}
+
+' ═══════════════════════════════════
+'  ENUMERACIONES
+' ═══════════════════════════════════
+package "enums" #EAFAF1 {
+
+    enum TipoVehiculo {
+        SEDAN
+        SUV
+        CAMIONETA
+        MOTO
+        CAMION
+    }
+
+    enum EstadoOrden {
+        REGISTRADA
+        EN_PROCESO
+        FINALIZADA
+        ENTREGADA
+        CANCELADA
+    }
+
+    enum MetodoPago {
+        EFECTIVO
+        TARJETA_CREDITO
+        TARJETA_DEBITO
+        TRANSFERENCIA
+    }
+}
+
+' ═══════════════════════════════════
+'  ENTIDADES
+' ═══════════════════════════════════
+package "model" #EBF5FB {
+
+    class Cliente {
+        - id            : Long
+        - nombre        : String
+        - apellido      : String
+        - documento     : String  <<unique>>
+        - telefono      : String
+        - email         : String
+    }
+
+    class Vehiculo {
+        - id            : Long
+        - placa         : String  <<unique>>
+        - marca         : String
+        - modelo        : String
+        - anio          : Integer
+        - color         : String
+        - tipoVehiculo  : TipoVehiculo
+    }
+
+    class Servicio {
+        - id            : Long
+        - nombre        : String  <<unique>>
+        - descripcion   : String
+        - precioBase    : BigDecimal
+        - activo        : Boolean
+    }
+
+    class PrecioServicioVehiculo {
+        - id            : Long
+        - tipoVehiculo  : TipoVehiculo
+        - precio        : BigDecimal
+        ..unique..
+        (servicio + tipoVehiculo)
+    }
+
+    class OrdenServicio {
+        - id                  : Long
+        - fechaCreacion       : LocalDateTime
+        - fechaActualizacion  : LocalDateTime
+        - estado              : EstadoOrden
+        - observaciones       : String
+        - total               : BigDecimal
+        --
+        + recalcularTotal() : void
+    }
+
+    class DetalleOrden {
+        - id             : Long
+        - precioAplicado : BigDecimal
+        - observaciones  : String
+    }
+
+    class Pago {
+        - id          : Long
+        - monto       : BigDecimal
+        - metodoPago  : MetodoPago
+        - fechaPago   : LocalDateTime
+        - referencia  : String
+    }
+}
+
+' ═══════════════════════════════════
+'  RELACIONES DE DOMINIO
+' ═══════════════════════════════════
+
+Cliente       "1"  o--  "0..*"  Vehiculo          : tiene >
+Vehiculo      "1"  o--  "0..*"  OrdenServicio      : genera >
+OrdenServicio "1"  *--  "1..*"  DetalleOrden       : contiene >
+OrdenServicio "1"  o--  "0..*"  Pago               : registra >
+
+DetalleOrden          -->  Servicio               : referencia >
+PrecioServicioVehiculo -->  Servicio              : pertenece a >
+
+Vehiculo               -->  TipoVehiculo
+PrecioServicioVehiculo -->  TipoVehiculo
+OrdenServicio          -->  EstadoOrden
+Pago                   -->  MetodoPago
+
+' ═══════════════════════════════════
+'  NOTA: CICLO DE VIDA DE LA ORDEN
+' ═══════════════════════════════════
+note right of EstadoOrden
+  Transiciones válidas:
+  REGISTRADA → EN_PROCESO | CANCELADA
+  EN_PROCESO → FINALIZADA | CANCELADA
+  FINALIZADA → ENTREGADA
+  ENTREGADA  → (estado final)
+  CANCELADA  → (estado final)
+end note
+
+note right of PrecioServicioVehiculo
+  Precio especial por tipo de vehículo.
+  Si no existe, se aplica precioBase
+  del servicio (fallback automático).
+end note
+
+@enduml

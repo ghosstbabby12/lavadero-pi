@@ -1,0 +1,339 @@
+@startuml diagrama-arquitectura-lavadero
+
+title Sistema de Gestion - Centro de Lavado de Vehiculos\nArquitectura: Interfaces - Composicion - Delegacion
+
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 11
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor       White
+    BorderColor           #2C3E50
+    HeaderBackgroundColor #2471A3
+    HeaderFontColor       White
+}
+skinparam interface {
+    BackgroundColor       #EBF5FB
+    BorderColor           #1A5276
+    HeaderBackgroundColor #1A5276
+    HeaderFontColor       White
+}
+skinparam package {
+    BackgroundColor       #FDFEFE
+    BorderColor           #AEB6BF
+    FontStyle             bold
+}
+
+' ════════════════════════════════════════════════
+'  CAPA: CONTROLADORES
+' ════════════════════════════════════════════════
+package "controller" #F2F4F4 {
+    class ClienteController {
+        + crear()
+        + listar()
+        + obtener()
+        + actualizar()
+        + eliminar()
+    }
+    class VehiculoController {
+        + crear()
+        + listar()
+        + listarPorCliente()
+        + obtener()
+        + actualizar()
+    }
+    class ServicioController {
+        + crear()
+        + listar()
+        + obtener()
+        + actualizar()
+    }
+    class OrdenController {
+        + crear()
+        + listar()
+        + obtenerDetalle()
+        + cambiarEstado()
+        + agregarServicio()
+        + eliminarServicio()
+        + cancelar()
+    }
+    class PagoController {
+        + registrar()
+        + listar()
+    }
+    class PrecioServicioVehiculoController {
+        + crear()
+        + listar()
+        + actualizar()
+        + eliminar()
+    }
+}
+
+' ════════════════════════════════════════════════
+'  CAPA: INTERFACES DE SERVICIO
+' ════════════════════════════════════════════════
+package "service  (interfaces)" #EBF5FB {
+
+    interface ClienteService {
+        + crear(r) : ClienteResponse
+        + listar() : List
+        + obtener(id) : ClienteResponse
+        + actualizar(id, r) : ClienteResponse
+        + eliminar(id) : void
+        + buscarPorId(id) : Cliente
+    }
+
+    interface VehiculoService {
+        + crear(r) : VehiculoResponse
+        + listar() : List
+        + listarPorCliente(clienteId) : List
+        + obtener(id) : VehiculoResponse
+        + actualizar(id, r) : VehiculoResponse
+        + buscarPorId(id) : Vehiculo
+    }
+
+    interface ServicioService {
+        + crear(r) : ServicioResponse
+        + listar(soloActivos) : List
+        + obtener(id) : ServicioResponse
+        + actualizar(id, r) : ServicioResponse
+        + buscarPorId(id) : Servicio
+    }
+
+    interface OrdenService {
+        + crear(r) : OrdenResponse
+        + listar(estado) : List
+        + obtenerDetalle(id) : OrdenResponse
+        + cambiarEstado(id, r) : OrdenResponse
+        + agregarDetalle(ordenId, r) : OrdenResponse
+        + eliminarDetalle(ordenId, detalleId) : OrdenResponse
+        + cancelar(id) : void
+        + buscarPorId(id) : OrdenServicio
+    }
+
+    interface PagoService {
+        + registrar(ordenId, r) : PagoResponse
+        + listarPorOrden(ordenId) : List
+    }
+
+    interface PrecioServicioVehiculoService {
+        + crear(servicioId, r) : PrecioServicioVehiculoResponse
+        + listarPorServicio(servicioId) : List
+        + actualizar(id, r) : PrecioServicioVehiculoResponse
+        + eliminar(id) : void
+    }
+}
+
+' ════════════════════════════════════════════════
+'  PATRONES DE DELEGACION
+' ════════════════════════════════════════════════
+package "orden  (State Pattern)" #FDEDEC {
+    interface OrdenEstadoMachine {
+        + validarTransicion(actual, nuevo) : void
+        + esModificable(estado) : boolean
+    }
+    class OrdenEstadoMachineImpl {
+        - TRANSICIONES : Map
+        --
+        + validarTransicion(actual, nuevo) : void
+        + esModificable(estado) : boolean
+    }
+}
+
+package "precio  (Strategy Pattern)" #FEF9E7 {
+    interface PrecioResolutionStrategy {
+        + resolver(servicio, vehiculo) : BigDecimal
+    }
+    class PrecioEspecialPrimeroStrategy {
+        - precioRepository
+        --
+        + resolver(servicio, vehiculo) : BigDecimal
+    }
+}
+
+' ════════════════════════════════════════════════
+'  CAPA: MAPPERS  (Composicion)
+' ════════════════════════════════════════════════
+package "mapper  (Composicion)" #FFFDE7 {
+
+    interface EntityMapper~E,R~ {
+        + toResponse(entity : E) : R
+    }
+
+    class ClienteMapper
+    class VehiculoMapper
+    class ServicioMapper
+    class DetalleOrdenMapper
+    class PagoMapper
+    class PrecioServicioVehiculoMapper
+
+    class OrdenMapper {
+        - detalleMapper : DetalleOrdenMapper
+        - pagoMapper    : PagoMapper
+        --
+        + toResponse(orden) : OrdenResponse
+    }
+}
+
+' ════════════════════════════════════════════════
+'  CAPA: IMPLEMENTACIONES DE SERVICIO
+' ════════════════════════════════════════════════
+package "service.impl" #F4F6F7 {
+
+    class ClienteServiceImpl {
+        - clienteRepository
+        - clienteMapper
+    }
+
+    class VehiculoServiceImpl {
+        - vehiculoRepository
+        - clienteService      <<composicion>>
+        - vehiculoMapper
+    }
+
+    class ServicioServiceImpl {
+        - servicioRepository
+        - servicioMapper
+    }
+
+    class OrdenServiceImpl {
+        - ordenRepository
+        - detalleOrdenRepository
+        - vehiculoService    <<composicion>>
+        - servicioService    <<composicion>>
+        - estadoMachine      <<delegacion>>
+        - precioStrategy     <<delegacion>>
+        - ordenMapper        <<delegacion>>
+    }
+
+    class PagoServiceImpl {
+        - pagoRepository
+        - detalleOrdenRepository
+        - ordenService       <<composicion>>
+        - pagoMapper
+    }
+
+    class PrecioServicioVehiculoServiceImpl {
+        - precioRepository
+        - servicioService    <<composicion>>
+        - precioMapper
+    }
+}
+
+' ════════════════════════════════════════════════
+'  CAPA: REPOSITORIOS
+' ════════════════════════════════════════════════
+package "repository  (JpaRepository)" #F9F9F9 {
+    interface ClienteRepository
+    interface VehiculoRepository
+    interface ServicioRepository
+    interface PrecioServicioVehiculoRepository
+    interface OrdenRepository {
+        + findAllWithVehiculo()
+        + findByEstadoWithVehiculo(estado)
+        + findByIdWithDetalles(id)
+    }
+    interface DetalleOrdenRepository {
+        + existsByOrdenId(ordenId)
+    }
+    interface PagoRepository {
+        + sumMontoByOrdenId(ordenId)
+    }
+}
+
+' ════════════════════════════════════════════════
+'  CONTROLLERS --> SERVICE INTERFACES
+' ════════════════════════════════════════════════
+ClienteController                -->  ClienteService
+VehiculoController               -->  VehiculoService
+ServicioController               -->  ServicioService
+OrdenController                  -->  OrdenService
+PagoController                   -->  PagoService
+PrecioServicioVehiculoController -->  PrecioServicioVehiculoService
+
+' ════════════════════════════════════════════════
+'  IMPLEMENTACIONES ..|> INTERFACES
+' ════════════════════════════════════════════════
+ClienteServiceImpl                ..|>  ClienteService
+VehiculoServiceImpl               ..|>  VehiculoService
+ServicioServiceImpl               ..|>  ServicioService
+OrdenServiceImpl                  ..|>  OrdenService
+PagoServiceImpl                   ..|>  PagoService
+PrecioServicioVehiculoServiceImpl ..|>  PrecioServicioVehiculoService
+
+OrdenEstadoMachineImpl        ..|>  OrdenEstadoMachine
+PrecioEspecialPrimeroStrategy ..|>  PrecioResolutionStrategy
+
+' ════════════════════════════════════════════════
+'  MAPPERS ..|> EntityMapper
+' ════════════════════════════════════════════════
+ClienteMapper                ..|>  EntityMapper
+VehiculoMapper               ..|>  EntityMapper
+ServicioMapper               ..|>  EntityMapper
+DetalleOrdenMapper           ..|>  EntityMapper
+PagoMapper                   ..|>  EntityMapper
+OrdenMapper                  ..|>  EntityMapper
+PrecioServicioVehiculoMapper ..|>  EntityMapper
+
+OrdenMapper  o-->  DetalleOrdenMapper  : delega mapeo detalle
+OrdenMapper  o-->  PagoMapper          : delega mapeo pago
+
+' ════════════════════════════════════════════════
+'  COMPOSICION Y DELEGACION EN SERVICIOS
+' ════════════════════════════════════════════════
+OrdenServiceImpl  -->  OrdenEstadoMachine       : delega validacion estado
+OrdenServiceImpl  -->  PrecioResolutionStrategy  : delega resolucion precio
+OrdenServiceImpl  -->  OrdenMapper              : delega mapeo
+OrdenServiceImpl  -->  VehiculoService          : composicion
+OrdenServiceImpl  -->  ServicioService          : composicion
+
+VehiculoServiceImpl               -->  ClienteService   : composicion
+PagoServiceImpl                   -->  OrdenService     : composicion
+PrecioServicioVehiculoServiceImpl -->  ServicioService  : composicion
+
+' ════════════════════════════════════════════════
+'  IMPLEMENTACIONES --> REPOSITORIOS
+' ════════════════════════════════════════════════
+ClienteServiceImpl                -->  ClienteRepository
+VehiculoServiceImpl               -->  VehiculoRepository
+ServicioServiceImpl               -->  ServicioRepository
+OrdenServiceImpl                  -->  OrdenRepository
+OrdenServiceImpl                  -->  DetalleOrdenRepository
+PagoServiceImpl                   -->  PagoRepository
+PagoServiceImpl                   -->  DetalleOrdenRepository
+PrecioServicioVehiculoServiceImpl -->  PrecioServicioVehiculoRepository
+PrecioEspecialPrimeroStrategy     -->  PrecioServicioVehiculoRepository
+
+' ════════════════════════════════════════════════
+'  NOTAS
+' ════════════════════════════════════════════════
+note top of OrdenEstadoMachine
+  Patron State (Delegacion)
+  REGISTRADA -> EN_PROCESO | CANCELADA
+  EN_PROCESO -> FINALIZADA | CANCELADA
+  FINALIZADA -> ENTREGADA
+  ENTREGADA  -> (estado final)
+  CANCELADA  -> (estado final)
+end note
+
+note top of PrecioResolutionStrategy
+  Patron Strategy (Delegacion)
+  Prioridad de resolución:
+  1. Precio manual (en el request)
+  2. Precio especial por TipoVehiculo
+  3. precioBase del Servicio (fallback)
+end note
+
+note bottom of OrdenMapper
+  Composicion: OrdenMapper
+  no duplica logica, delega a
+  DetalleOrdenMapper y PagoMapper.
+end note
+
+note right of OrdenServiceImpl
+  Composicion + Delegacion:
+  depende de interfaces, no de
+  implementaciones concretas.
+end note
+
+@enduml
